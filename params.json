@@ -1,0 +1,115 @@
+{
+  "RUSBoostClassifier": {
+    "n_estimators": {
+      "class": "Integer",
+      "module": "skopt.space",
+      "kwargs": {
+        "low": 50,
+        "high": 200
+      }
+    },
+    "learning_rate": {
+      "class": "Real",
+      "module": "skopt.space",
+      "kwargs": {
+        "low": 0.01,
+        "high": 1.0,
+        "prior": "log-uniform"
+      }
+    },
+    "algorithm": {
+      "class": "Categorical",
+      "module": "skopt.space",
+      "choices": [
+        "SAMME",
+        "SAMME.R"
+      ]
+    },
+    "replacement": {
+      "class": "Categorical",
+      "module": "skopt.space",
+      "choices": [
+        true,
+        false
+      ]
+    }
+  },
+  "RandomForestClassifier": {
+    "n_estimators": {
+      "class": "Integer",
+      "module": "skopt.space",
+      "kwargs": {
+        "low": 10,
+        "high": 1000
+      }
+    },
+    "max_depth": {
+      "class": "Integer",
+      "module": "skopt.space",
+      "kwargs": {
+        "low": 1,
+        "high": 100
+      }
+    },
+    "min_samples_split": {
+      "class": "Integer",
+      "module": "skopt.space",
+      "kwargs": {
+        "low": 2,
+        "high": 20
+      }
+    },
+    "min_samples_leaf": {
+      "class": "Integer",
+      "module": "skopt.space",
+      "kwargs": {
+        "low": 1,
+        "high": 20
+      }
+    },
+    "max_features": {
+      "class": "Categorical",
+      "module": "skopt.space",
+      "choices": [
+        "sqrt",
+        "log2",
+        null
+      ]
+    },
+    "bootstrap": {
+      "class": "Categorical",
+      "module": "skopt.space",
+      "choices": [
+        true,
+        false
+      ]
+    },
+    "criterion": {
+      "class": "Categorical",
+      "module": "skopt.space",
+      "choices": [
+        "gini",
+        "entropy"
+      ]
+    }
+  },
+  "SVC": {
+    "C": {
+      "class": "Real",
+      "module": "skopt.space",
+      "kwargs": {
+        "low": 0.1,
+        "high": 100.0
+      }
+    },
+    "kernel": {
+      "class": "Categorical",
+      "module": "skopt.space",
+      "choices": [
+        "linear",
+        "rbf",
+        "poly"
+      ]
+    }
+  }
+}
