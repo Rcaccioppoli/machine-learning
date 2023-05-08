@@ -1,5 +1,5 @@
 {
-  "RUSBoostClassifier": {
+  "RUSBoost": {
     "n_estimators": {
       "class": "Integer",
       "module": "skopt.space",
@@ -34,7 +34,7 @@
       ]
     }
   },
-  "RandomForestClassifier": {
+  "RandomForest": {
     "n_estimators": {
       "class": "Integer",
       "module": "skopt.space",
@@ -93,7 +93,7 @@
       ]
     }
   },
-  "SVC": {
+  "SV": {
     "C": {
       "class": "Real",
       "module": "skopt.space",
