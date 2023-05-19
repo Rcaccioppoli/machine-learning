@@ -12,8 +12,8 @@ from sklearn.model_selection import (GridSearchCV, RandomizedSearchCV,
 from skopt import BayesSearchCV
 from skopt.space import Categorical, Integer, Real
 
-from src.lib import logger as logManager
-from src.lib.printer import (plot_classification_report, plot_confusion_matrix,
+from lib.utility import logger as logManager
+from lib.utility.printer import (plot_classification_report, plot_confusion_matrix,
                              plot_feature_importance, plot_scatter)
 
 
