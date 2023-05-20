@@ -12,8 +12,8 @@ from sklearn.model_selection import (GridSearchCV, RandomizedSearchCV,
 from skopt import BayesSearchCV
 from skopt.space import Categorical, Integer, Real
 
-from lib.utility import logger as logManager
-from lib.utility.printer import (plot_classification_report, plot_confusion_matrix,
+from ..utility import logger as logManager
+from ..utility.printer import (plot_classification_report, plot_confusion_matrix,
                              plot_feature_importance, plot_scatter)
 
 
@@ -112,7 +112,7 @@ def predict(model, dataset, logger=None):
     logger.info("Test targets: %s", targets.value_counts().to_dict()) if logger is not None else None
 
     # predict on test data
-    y_pred = model.predict(features)
+    y_pred = model.predict(np.nan_to_num(features.values))
 
     if hasattr(model, 'predict_proba'):
         # if the model is a classifier, compute the accuracy
@@ -166,11 +166,11 @@ def optimize(
 
     # if the outdir is present, here we save the result
     if outdir != None:
-        save(model, dataset, pred_output, outdir, exp_name, logger=logger, **model_type)
+        save(model, dataset, pred_output, outdir, model_type, exp_name, logger=logger)
 
     return pred_output[1]
 
-def save(model, dataset, pred_output, outdir, name="", logger=None, **kwargs):
+def save(model, dataset, pred_output, outdir, save_option, name="", logger=None):
     """Saves the model's output to an Excel file in the specified output directory.
 
     This function saves the trained model, predictions, and evaluation metrics to an Excel file in the specified
@@ -198,40 +198,36 @@ def save(model, dataset, pred_output, outdir, name="", logger=None, **kwargs):
 
     writer = pd.ExcelWriter(os.path.join(outdir, name + ".xlsx"))
 
-    if "report" in kwargs:
+    if "report" in save_option:
         y_true = dataset.loc[dataset["SPLIT"] == "Test"].drop(columns=["SPLIT"]).iloc[:, -1]
         n_class = dataset["TARGET"].nunique()
         writer = plot_classification_report(writer=writer, y_true=y_true, y_pred=predictions, output_dict=True, n_class=n_class)
 
-    if "matrix" in kwargs:
+    if "matrix" in save_option:
         y_true = dataset.loc[dataset["SPLIT"] == "Test"].drop(columns=["SPLIT"]).iloc[:, -1]
         labels = dataset["TARGET"].unique().tolist()
         writer = plot_confusion_matrix(writer=writer, y_true=y_true, y_pred=predictions, labels=labels)
 
-    if "features" in kwargs and hasattr(model, 'feature_importances_'):
+    if "features" in save_option and hasattr(model, 'feature_importances_'):
         importance = np.array(model.feature_importances_)
         names = dataset.iloc[:, :-2].columns
         writer = plot_feature_importance(writer=writer, importance=importance, names=names)
 
-    if "dataset" in kwargs:
+    if "dataset" in save_option:
         dataset.to_excel(writer, sheet_name="Dataset", index=False)
     
-    if "params" in kwargs:
+    if "params" in save_option:
         param_df = pd.DataFrame.from_dict(model.get_params(), orient="index", columns=["value"])
         param_df.to_excel(writer, sheet_name="Best Params")
 
-    if "scatter" in kwargs:
+    if "scatter" in save_option:
         y_true = dataset.loc[dataset["SPLIT"] == "Test"].drop(columns=["SPLIT"]).iloc[:, -1]
 
         writer = plot_scatter(writer=writer, y_true=y_true, y_pred=predictions)
 
-    if "metrics" in kwargs:
+    if "metrics" in save_option:
         metrics_df = pd.DataFrame.from_dict(metrics, orient="index", columns=["value"])
         metrics_df.to_excel(writer, sheet_name="Metrics")
-
-    # if "cv_result" in kwargs:
-    #     cv_result = kwargs.get('cv_result')
-    #     cv_result.to_excel(writer, sheet_name="CV Result")
 
     writer.save()
 
@@ -248,7 +244,7 @@ def get_model_type(model):
     type = {}
 
     if issubclass(model.__class__, ClassifierMixin):
-        type = {"report", "matrix", "features", "dataset" "params"}
+        type = {"report", "matrix", "features", "dataset", "params"}
     elif issubclass(model.__class__, RegressorMixin):
         type = {"features", "dataset", "params", "scatter", "metrics"}
 
