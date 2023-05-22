@@ -196,38 +196,47 @@ def save(model, dataset, pred_output, outdir, save_option, name="", logger=None)
 
     predictions, metrics = pred_output
 
-    writer = pd.ExcelWriter(os.path.join(outdir, name + ".xlsx"))
+    save_file = os.path.join(outdir, name + ".xlsx")
+    writer = pd.ExcelWriter(save_file)
+    logger.debug("Saving excel in %s", save_file) if logger is not None else None
+    logger.debug("sheets: %s", writer.sheets) if logger is not None else None
 
     if "report" in save_option:
         y_true = dataset.loc[dataset["SPLIT"] == "Test"].drop(columns=["SPLIT"]).iloc[:, -1]
         n_class = dataset["TARGET"].nunique()
         writer = plot_classification_report(writer=writer, y_true=y_true, y_pred=predictions, output_dict=True, n_class=n_class)
+        logger.debug("Saving Classification Report %s", writer.sheets) if logger is not None else None
 
     if "matrix" in save_option:
         y_true = dataset.loc[dataset["SPLIT"] == "Test"].drop(columns=["SPLIT"]).iloc[:, -1]
         labels = dataset["TARGET"].unique().tolist()
         writer = plot_confusion_matrix(writer=writer, y_true=y_true, y_pred=predictions, labels=labels)
+        logger.debug("Saving confusion matrix %s", writer.sheets) if logger is not None else None
 
     if "features" in save_option and hasattr(model, 'feature_importances_'):
         importance = np.array(model.feature_importances_)
         names = dataset.iloc[:, :-2].columns
         writer = plot_feature_importance(writer=writer, importance=importance, names=names)
+        logger.debug("Saving features importance %s", writer.sheets) if logger is not None else None
 
     if "dataset" in save_option:
         dataset.to_excel(writer, sheet_name="Dataset", index=False)
-    
+        logger.debug("Saving Dataset %s", writer.sheets) if logger is not None else None
+
     if "params" in save_option:
         param_df = pd.DataFrame.from_dict(model.get_params(), orient="index", columns=["value"])
         param_df.to_excel(writer, sheet_name="Best Params")
+        logger.debug("Saving Best Params %s", writer.sheets) if logger is not None else None
 
     if "scatter" in save_option:
         y_true = dataset.loc[dataset["SPLIT"] == "Test"].drop(columns=["SPLIT"]).iloc[:, -1]
-
         writer = plot_scatter(writer=writer, y_true=y_true, y_pred=predictions)
+        logger.debug("Saving Scatter Plot %s", writer.sheets) if logger is not None else None
 
     if "metrics" in save_option:
         metrics_df = pd.DataFrame.from_dict(metrics, orient="index", columns=["value"])
         metrics_df.to_excel(writer, sheet_name="Metrics")
+        logger.debug("Saving Metrics %s", writer.sheets) if logger is not None else None
 
     writer.save()
 
