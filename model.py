@@ -42,23 +42,29 @@ def train(
     targets = dataset.iloc[:, -1]
 
     logger.info("features:\n%s", features.head().to_string()) if logger is not None else None
-    logger.info("targets: %s", targets.value_counts().to_dict()) if logger is not None else None
 
-    # split the dataset in training e test set, with stratify to keep the classes balanced
-    X_train, X_test, y_train, y_test = train_test_split(
-        features, targets, test_size=0.3, train_size=0.7, stratify=targets
-    )
+    if issubclass(estimator.__class__, ClassifierMixin):
+        logger.info("targets: %s", targets.value_counts().to_dict()) if logger is not None else None
+        # split the dataset in training e test set, with stratify to keep the classes balanced
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, targets, test_size=0.3, train_size=0.7, stratify=targets
+        )
+
+        logger.info("Training set: %s", y_train.value_counts().to_dict()) if logger is not None else None
+        logger.info("Test set: %s", y_test.value_counts().to_dict()) if logger is not None else None
+
+    elif issubclass(estimator.__class__, RegressorMixin):
+        logger.info("targets: %s", targets.shape[0]) if logger is not None else None
+        # split the dataset in training e test set
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, targets, test_size=0.3, train_size=0.7)
+        
+        logger.info("Training set: %s", len(y_train)) if logger is not None else None
+        logger.info("Test set: %s", len(y_test)) if logger is not None else None
 
     # TRAINING 70%
     x_train_values = np.nan_to_num(X_train.values)
     y_train_values = np.nan_to_num(y_train.values).ravel()
-
-    # VALIDATION 30%
-    x_test_values = np.nan_to_num(X_test.values)
-    y_test_values = np.nan_to_num(y_test.values)
-
-    logger.info("Training set: %s", y_train.value_counts().to_dict()) if logger is not None else None
-    logger.info("Test set: %s", y_test.value_counts().to_dict()) if logger is not None else None
 
     parameters = get_parameters(estimator=estimator, search=search, **param_args)
 
