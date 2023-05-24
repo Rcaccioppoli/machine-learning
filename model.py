@@ -7,7 +7,7 @@ from deprecated import deprecated
 from sklearn.base import ClassifierMixin, RegressorMixin
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
-from sklearn.model_selection import (GridSearchCV, RandomizedSearchCV,
+from sklearn.model_selection import (GridSearchCV, RandomizedSearchCV, RepeatedKFold,
                                      RepeatedStratifiedKFold, train_test_split)
 from skopt import BayesSearchCV
 from skopt.space import Categorical, Integer, Real
@@ -42,26 +42,17 @@ def train(
     targets = dataset.iloc[:, -1]
 
     logger.info("features:\n%s", features.head().to_string()) if logger is not None else None
+    logger.info("targets: %s", target_to_logger(targets, is_regressor(estimator))) if logger is not None else None
 
-    if issubclass(estimator.__class__, ClassifierMixin):
-        logger.info("targets: %s", targets.value_counts().to_dict()) if logger is not None else None
-        # split the dataset in training e test set, with stratify to keep the classes balanced
-        X_train, X_test, y_train, y_test = train_test_split(
-            features, targets, test_size=0.3, train_size=0.7, stratify=targets
-        )
+    # split the dataset in training e test set, with stratify to keep the classes balanced
+    X_train, X_test, y_train, y_test = train_test_split(
+        features, targets, test_size=0.3, train_size=0.7,
+        stratify=(targets if not is_regressor(estimator) else None)
+    )
 
-        logger.info("Training set: %s", y_train.value_counts().to_dict()) if logger is not None else None
-        logger.info("Test set: %s", y_test.value_counts().to_dict()) if logger is not None else None
-
-    elif issubclass(estimator.__class__, RegressorMixin):
-        logger.info("targets: %s", targets.shape[0]) if logger is not None else None
-        # split the dataset in training e test set
-        X_train, X_test, y_train, y_test = train_test_split(
-            features, targets, test_size=0.3, train_size=0.7)
-        
-        logger.info("Training set: %s", len(y_train)) if logger is not None else None
-        logger.info("Test set: %s", len(y_test)) if logger is not None else None
-
+    logger.info("Training set: %s", target_to_logger(y_train, is_regressor(estimator))) if logger is not None else None
+    logger.info("Test set: %s", target_to_logger(y_test, is_regressor(estimator))) if logger is not None else None
+    
     # TRAINING 70%
     x_train_values = np.nan_to_num(X_train.values)
     y_train_values = np.nan_to_num(y_train.values).ravel()
@@ -115,12 +106,12 @@ def predict(model, dataset, logger=None):
     targets = testset.iloc[:, -1]
 
     logger.info("Test features:\n%s", features.head().to_string()) if logger is not None else None
-    logger.info("Test targets: %s", targets.value_counts().to_dict()) if logger is not None else None
+    logger.info("Test targets: %s", target_to_logger(targets, is_regressor(model))) if logger is not None else None
 
     # predict on test data
     y_pred = model.predict(np.nan_to_num(features.values))
 
-    if hasattr(model, 'predict_proba'):
+    if not is_regressor(model):
         # if the model is a classifier, compute the accuracy
         accuracy = accuracy_score(targets, y_pred)
         logger.info("accuracy = %s", accuracy) if logger is not None else None
@@ -226,6 +217,9 @@ def save(model, dataset, pred_output, outdir, save_option, name="", logger=None)
         logger.debug("Saving features importance %s", writer.sheets) if logger is not None else None
 
     if "dataset" in save_option:
+        dataset["PREDICTED"] = ""
+        dataset.loc[dataset["SPLIT"] == "Test", "PREDICTED"] = predictions
+
         dataset.to_excel(writer, sheet_name="Dataset", index=False)
         logger.debug("Saving Dataset %s", writer.sheets) if logger is not None else None
 
@@ -319,7 +313,7 @@ def get_parameters(estimator, search, **kwargs):
 
     common_params = {
         "estimator": estimator,
-        "cv": kwargs.get("cv", RepeatedStratifiedKFold(n_splits=5, n_repeats=5)),
+        "cv": kwargs.get("cv", RepeatedStratifiedKFold(n_splits=5, n_repeats=5) if not is_regressor(estimator) else RepeatedKFold(n_splits=5, n_repeats=5)),
         "verbose": kwargs.get("verbose", 1),
         "n_jobs": kwargs.get("n_jobs", -1),
         "scoring": kwargs.get("scoring", None),
@@ -441,62 +435,23 @@ def search_space_to_lists(search_space):
 
     return new_search_space
 
-@deprecated(reason="This function is deprecated and will be removed in the next version. Use the new function save instead.")
-def _save_result(outdir, name, logger=None, **kwargs):
-    """DEPRECATED
-    ---
-    Save the results of a classification model to an Excel file.
+def target_to_logger(value, is_regressor):
+    result = None
 
-    Args:
-        outdir (str): The directory in which to save the Excel file.
-        name (str): The name of the Excel file to save.
-        logger (logging.Logger, optional): A logger to log information about the saving process. If not specified, no logger will be used.
-        **kwargs: A dictionary containing data to be saved to the Excel file. Accepted keys are:
-            - "report": A dictionary containing parameters for scikit-learn's `classification_report` function. If present, a classification report will be generated and saved to the Excel file.
-            - "matrix": A dictionary containing parameters for scikit-learn's `confusion_matrix` function. If present, a confusion matrix will be generated and saved to the Excel file.
-            - "features": A dictionary containing parameters for the `plot_feature_importance` function. If present, a feature importance plot will be generated and saved to the Excel file.
-            - "dataset": A dictionary containing the train and test dataframes. If present, the dataframes will be concatenated and saved to the Excel file.
-            - "params": A dictionary containing the best parameters of the model. If present, they will be saved to the Excel file.
-            - "cv_result": A DataFrame containing cross-validation results. If present, it will be saved to the Excel file.
+    if is_regressor:
+        if isinstance(value, pd.DataFrame):
+            result = value.shape[0]
+        else:
+            result = len(value)
+    else:
+        result = value.value_counts().to_dict()
 
-    Returns:
-        None
-    """
+    return result
+
+def is_regressor(model):
+    result = True
+
+    if hasattr(model, 'predict_proba') or issubclass(model.__class__, ClassifierMixin):
+        result = False
     
-    os.makedirs(outdir, exist_ok=True)
-    logger.info("model_name: %s", name) if logger is not None else None
-    
-    writer = pd.ExcelWriter(os.path.join(outdir, name + ".xlsx"))
-
-    if "report" in kwargs:
-        writer = plot_classification_report(writer=writer, **kwargs.get('report'))
-
-    if "matrix" in kwargs:
-        writer = plot_confusion_matrix(writer=writer, **kwargs.get('matrix'))
-
-    if "features" in kwargs:
-        writer = plot_feature_importance(writer=writer, **kwargs.get('features'))
-
-    if "dataset" in kwargs:
-        # Add a dataset column to both the train and test dataframes
-        df_train = kwargs.get('dataset').get("X_train")
-        df_train["TARGET"] = kwargs.get('dataset').get("y_train")
-        df_train["SPLIT"] = "Train"
-
-        df_test = kwargs.get('dataset').get("X_test")
-        df_test["TARGET"] = kwargs.get('dataset').get("y_test")
-        df_test["SPLIT"] = "Test"
-
-        # Concatenate the train and test dataframes back together
-        dataset = pd.concat([df_train, df_test])
-        dataset.to_excel(writer, sheet_name="Dataset", index=False)
-    
-    if "params" in kwargs:
-        param_df = pd.DataFrame.from_dict(kwargs.get('params'), orient="index", columns=["value"])
-        param_df.to_excel(writer, sheet_name="Best Params")
-
-    if "cv_result" in kwargs:
-        cv_result = kwargs.get('cv_result')
-        cv_result.to_excel(writer, sheet_name="CV Result")
-
-    writer.save()
+    return result
