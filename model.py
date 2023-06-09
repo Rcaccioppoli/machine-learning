@@ -455,3 +455,29 @@ def is_regressor(model):
         result = False
     
     return result
+
+def check_balance(df, threshold=70/30):
+    # Calcola la distribuzione delle classi
+    class_counts = df['TARGET'].value_counts()
+    minority_class_count = class_counts.min()
+    majority_class_count = class_counts.max()
+    
+    # Calcola lo sbilanciamento
+    imbalance_ratio = majority_class_count / minority_class_count
+    
+    # Verifica se il dataset è bilanciato o sbilanciato
+    if imbalance_ratio <= threshold:
+        return "balanced"
+    else:
+        return "unbalanced"
+
+def determine_ml_type(df, threshold=20):
+    if df['TARGET'].dtype == 'float64':
+        return 'regression'
+    elif df['TARGET'].dtype == 'int64':
+        if df['TARGET'].nunique() > threshold or (df['TARGET'].value_counts() == 1).sum() > threshold:
+            return 'regression'
+        else:
+            return 'classification'
+    else:
+        return 'classification'
