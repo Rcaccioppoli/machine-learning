@@ -5,7 +5,9 @@ import numpy as np
 import pandas as pd
 from deprecated import deprecated
 from sklearn.base import ClassifierMixin, RegressorMixin
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from imblearn.ensemble import RUSBoostClassifier
+from sklearn.ensemble import AdaBoostClassifier
 from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 from sklearn.model_selection import (GridSearchCV, RandomizedSearchCV, RepeatedKFold,
                                      RepeatedStratifiedKFold, train_test_split)
@@ -19,7 +21,7 @@ from ..utility.printer import (plot_classification_report, plot_confusion_matrix
 
 def train(
     dataset,
-    estimator=RandomForestClassifier(),
+    estimator=None,
     search=BayesSearchCV.__name__,
     logger=None,
     param_args={},
@@ -40,6 +42,9 @@ def train(
     features = dataset.iloc[:, :-1]
     # targets are in the last column of the dataset
     targets = dataset.iloc[:, -1]
+
+    if estimator is None:
+        estimator = choose_estimator(targets)
 
     logger.info("features:\n%s", features.head().to_string()) if logger is not None else None
     logger.info("targets: %s", target_to_logger(targets, is_regressor(estimator))) if logger is not None else None
@@ -456,9 +461,9 @@ def is_regressor(model):
     
     return result
 
-def check_balance(df, threshold=70/30):
+def check_balance(targets, threshold=70/30):
     # Calcola la distribuzione delle classi
-    class_counts = df['TARGET'].value_counts()
+    class_counts = targets.value_counts()
     minority_class_count = class_counts.min()
     majority_class_count = class_counts.max()
     
@@ -471,13 +476,28 @@ def check_balance(df, threshold=70/30):
     else:
         return "unbalanced"
 
-def determine_ml_type(df, threshold=20):
-    if df['TARGET'].dtype == 'float64':
+def determine_ml_type(targets, threshold=20):
+    if targets.dtype == 'float64':
         return 'regression'
-    elif df['TARGET'].dtype == 'int64':
-        if df['TARGET'].nunique() > threshold or (df['TARGET'].value_counts() == 1).sum() > threshold:
+    elif targets.dtype == 'int64':
+        if targets.nunique() > threshold or (targets.value_counts() == 1).sum() > threshold:
             return 'regression'
         else:
             return 'classification'
     else:
         return 'classification'
+
+def choose_estimator(targets):
+    balance_status = check_balance(targets)
+    ml_type = determine_ml_type(targets)
+    result = None
+
+    if ml_type == "regression":
+        result = RandomForestRegressor()
+    else:
+        if balance_status == "balanced":
+            result = RandomForestClassifier()
+        else:
+            result = RUSBoostClassifier(AdaBoostClassifier(), sampling_strategy="auto")
+
+    return result
