@@ -44,7 +44,7 @@ def train(
     targets = dataset.iloc[:, -1]
 
     if estimator is None:
-        estimator = choose_estimator(targets)
+        estimator = choose_estimator(targets, logger)
 
     logger.info("features:\n%s", features.head().to_string()) if logger is not None else None
     logger.info("targets: %s", target_to_logger(targets, is_regressor(estimator))) if logger is not None else None
@@ -136,7 +136,7 @@ def predict(model, dataset, logger=None):
 def optimize(
     dataset,
     exp_name,
-    estimator=RandomForestClassifier(),
+    estimator=None,
     search=BayesSearchCV.__name__,
     logger=None,
     outdir=None,
@@ -164,7 +164,7 @@ def optimize(
 
     pred_output = predict(model, dataset, logger)
 
-    model_type = get_model_type(estimator)
+    model_type = get_model_type(model, logger)
 
     # if the outdir is present, here we save the result
     if outdir != None:
@@ -245,7 +245,7 @@ def save(model, dataset, pred_output, outdir, save_option, name="", logger=None)
 
     writer.save()
 
-def get_model_type(model):
+def get_model_type(model, logger=None):
     """Determines the type of a scikit-learn model and returns a set of available information types necessary to save the results of the finded model.
 
     Args:
@@ -256,11 +256,15 @@ def get_model_type(model):
         "features", "dataset", "params", "scatter", and "metrics".
     """
     type = {}
+    
+    logger.debug("Model class: %s", model.__class__) if logger is not None else None
 
-    if issubclass(model.__class__, ClassifierMixin):
-        type = {"report", "matrix", "features", "dataset", "params"}
-    elif issubclass(model.__class__, RegressorMixin):
+    if is_regressor(model):
         type = {"features", "dataset", "params", "scatter", "metrics"}
+    else:
+        type = {"report", "matrix", "features", "dataset", "params"}
+
+    logger.debug("saving type: %s", type) if logger is not None else None
 
     return type
 
@@ -461,7 +465,7 @@ def is_regressor(model):
     
     return result
 
-def check_balance(targets, threshold=70/30):
+def check_balance(targets, threshold=70/30, logger=None):
     # Calcola la distribuzione delle classi
     class_counts = targets.value_counts()
     minority_class_count = class_counts.min()
@@ -469,14 +473,18 @@ def check_balance(targets, threshold=70/30):
     
     # Calcola lo sbilanciamento
     imbalance_ratio = majority_class_count / minority_class_count
-    
+    logger.debug("Imbalance Ratio: %s Threshold: %s", imbalance_ratio, threshold) if logger is not None else None
+
     # Verifica se il dataset è bilanciato o sbilanciato
     if imbalance_ratio <= threshold:
         return "balanced"
     else:
         return "unbalanced"
 
-def determine_ml_type(targets, threshold=20):
+def determine_ml_type(targets, threshold=20, logger=None):
+    logger.debug("Targets.dtype: %s Number of classes: %s Number of singleton: %s",
+                  targets.dtype, targets.nunique(), (targets.value_counts() == 1).sum()) if logger is not None else None
+
     if targets.dtype == 'float64':
         return 'regression'
     elif targets.dtype == 'int64':
@@ -487,9 +495,11 @@ def determine_ml_type(targets, threshold=20):
     else:
         return 'classification'
 
-def choose_estimator(targets):
-    balance_status = check_balance(targets)
-    ml_type = determine_ml_type(targets)
+def choose_estimator(targets, logger=None):
+    balance_status = check_balance(targets, logger=logger)
+    ml_type = determine_ml_type(targets, logger=logger)
+    logger.debug("balance_status: %s ml_type: %s", balance_status, ml_type) if logger is not None else None
+    
     result = None
 
     if ml_type == "regression":
@@ -499,5 +509,6 @@ def choose_estimator(targets):
             result = RandomForestClassifier()
         else:
             result = RUSBoostClassifier(AdaBoostClassifier(), sampling_strategy="auto")
-
+    
+    logger.debug("result: %s", result.__class__.__name__) if logger is not None else None
     return result
